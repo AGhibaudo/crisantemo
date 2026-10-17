@@ -91,7 +91,7 @@ export default function SensibilidadSection({ datos, version }) {
             </p>
             <div className="chart">
               <ResponsiveContainer width="100%" height={380}>
-                <LineChart data={datosGrafico} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                <LineChart data={datosGrafico} margin={{ top: 28, right: 20, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--grid)" />
                   {crit.lider_estable_min !== null && (
                     <ReferenceArea x1={crit.lider_estable_min} x2={crit.lider_estable_max} fill="var(--stable)" fillOpacity={0.5} />
@@ -105,7 +105,7 @@ export default function SensibilidadSection({ datos, version }) {
                     contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
                   />
                   <Legend formatter={(id) => actual.alternativas.find((a) => a.id === id)?.nombre} />
-                  <ReferenceLine x={crit.peso_actual} stroke="var(--text)" strokeDasharray="4 4" label={{ value: 'actual', fill: 'var(--muted)', position: 'top' }} />
+                  <ReferenceLine x={crit.peso_actual} stroke="var(--text)" strokeDasharray="4 4" label={{ value: 'actual', fill: 'var(--muted)', position: 'top', fontSize: 12, offset: 8 }} />
                   {actual.alternativas.map((a, i) => (
                     <Line key={a.id} dataKey={a.id} stroke={COLORES[i % COLORES.length]} dot={false} strokeWidth={2} />
                   ))}
