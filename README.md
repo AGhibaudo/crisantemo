@@ -89,6 +89,7 @@ Tests del backend: `cd backend && python -m pytest`.
 | POST | `/api/tablas/{tabla}/desperdicio` | `{"valores": {"A1": 5}}` — modifica el desperdicio y devuelve TOPSIS recalculado |
 | POST | `/api/desperdicio/multiple` | `{"tablas": {"habituales": {"A1": 5}, "especial": {"A1": 5}}}` — actualiza varias tablas en una transacción |
 | DELETE | `/api/tablas/{tabla}/desperdicio` | Restablece los valores del cliente |
+| DELETE | `/api/desperdicio/multiple` | Restablece todas las tablas al default del cliente y devuelve TOPSIS recalculado |
 
 Tablas: `habituales`, `especial`, `nuevo_habitual`.
 

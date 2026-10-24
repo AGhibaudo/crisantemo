@@ -1,5 +1,6 @@
 async function request(path, options = {}) {
   const res = await fetch(`/api${path}`, {
+    cache: 'no-store',
     headers: { 'Content-Type': 'application/json' },
     ...options,
   })
@@ -23,6 +24,7 @@ export const api = {
   guardarDesperdicios: (tablas) =>
     request('/desperdicio/multiple', { method: 'POST', body: JSON.stringify({ tablas }) }),
   restablecerDesperdicio: (tabla) => request(`/tablas/${tabla}/desperdicio`, { method: 'DELETE' }),
+  restablecerTodosLosDesperdicios: () => request('/desperdicio/multiple', { method: 'DELETE' }),
 }
 
 export const fmt = (n, d = 4) =>

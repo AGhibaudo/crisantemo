@@ -155,3 +155,9 @@ def delete_desperdicio(tabla_id: str):
     _validar_tabla(tabla_id)
     state.restablecer(tabla_id)
     return get_topsis()
+
+
+@app.delete("/api/desperdicio/multiple")
+def delete_desperdicios_multiples():
+    state.restablecer()
+    return get_topsis()

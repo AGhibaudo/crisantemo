@@ -39,6 +39,7 @@ export default function TablasSection({ datos, onCambio }) {
     return v === '' || v === undefined || Number.isNaN(Number(v)) || Number(v) < 0
   })
   const modificados = tabla.desperdicio_modificado
+  const cantidadTablasModificadas = tablas.filter((t) => Object.keys(t.desperdicio_modificado).length > 0).length
 
   async function guardar() {
     setGuardando(true)
@@ -93,7 +94,25 @@ export default function TablasSection({ datos, onCambio }) {
       await onCambio()
       setPropagar(false)
       setValoresExclusivos({})
-      setEstado({ tipo: 'ok', texto: 'Se restablecieron los valores del cliente.' })
+      setEstado({ tipo: 'ok', texto: 'Esta tabla volvió a los valores iniciales y TOPSIS se recalculó.' })
+    } catch (e) {
+      setEstado({ tipo: 'error', texto: e.message })
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  async function restablecerTodas() {
+    setGuardando(true)
+    try {
+      await api.restablecerTodosLosDesperdicios()
+      await onCambio()
+      setPropagar(false)
+      setValoresExclusivos({})
+      setEstado({
+        tipo: 'ok',
+        texto: 'Se restauraron los valores del cliente en todas las tablas. TOPSIS y los pesos se recalcularon.',
+      })
     } catch (e) {
       setEstado({ tipo: 'error', texto: e.message })
     } finally {
@@ -229,6 +248,9 @@ export default function TablasSection({ datos, onCambio }) {
           </button>
           <button className="btn" disabled={guardando || Object.keys(modificados).length === 0} onClick={restablecer}>
             Restablecer esta tabla
+          </button>
+          <button className="btn" disabled={guardando || cantidadTablasModificadas <= 1} onClick={restablecerTodas}>
+            Restablecer todas al default del cliente
           </button>
           {invalidos.length > 0 && <span className="text-error">El desperdicio debe ser un número ≥ 0.</span>}
           {exclusivosInvalidos && <span className="text-error">Completá un valor válido para cada producto exclusivo.</span>}
