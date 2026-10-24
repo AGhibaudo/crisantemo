@@ -23,11 +23,15 @@ El modelo contempla factores económicos, productivos, comerciales y operativos,
 
 ## Metodología Utilizada
 
-El problema se aborda como un Problema de Decisión Multicriterio (MCDA) utilizando la combinación de dos métodos:
+El problema se aborda como un Problema de Decisión Multicriterio (MCDA) comparando tres métodos para ponderar los criterios y TOPSIS para ordenar las alternativas:
 
 1. **AHP (Analytic Hierarchy Process):** Utilizado para determinar la ponderación y los pesos relativos ($w_j$) de los criterios de evaluación a partir de comparaciones por pares de las preferencias del cliente, validando la consistencia mediante el Índice de Consistencia ($IC$).
 
-2. **TOPSIS (Technique for Order Preference by Similarity to Ideal Solution):** Aplicado sobre las matrices de decisión normalizadas (vía Suma de Cuadrados) para generar un ranking de alternativas en función de su cercanía a la solución ideal.
+2. **CRITIC:** Calcula pesos objetivos usando la variabilidad de cada criterio y su correlación con los demás.
+
+3. **Entropía:** Calcula pesos objetivos a partir de la distribución normalizada de los valores. Los criterios de costo se transforman con $1/x$; si una proporción normalizada es 0, su logaritmo se representa como 0 y su aporte a la entropía también es 0.
+
+4. **TOPSIS (Technique for Order Preference by Similarity to Ideal Solution):** Aplicado sobre las matrices de decisión normalizadas (vía Suma de Cuadrados) para generar un ranking de alternativas en función de su cercanía a la solución ideal. Se calcula con los pesos de AHP, CRITIC y entropía.
 
 ## Criterios de Evaluación
 
@@ -55,7 +59,7 @@ El modelo contempla tres escenarios principales representados mediante distintas
 
 ## Aplicación web
 
-Backend en **Python + FastAPI** (`backend/`) y frontend en **React + JavaScript** con Vite (`frontend/`). Los datos del cliente están en `backend/app/data.py` (tomados de `doc/TPI_G7_Crisantemo.xlsx`); el único dato modificable es el **Desperdicio Esperado**, y cada cambio recalcula TOPSIS.
+Backend en **Python + FastAPI** (`backend/`) y frontend en **React + JavaScript** con Vite (`frontend/`). Los datos del cliente están en `backend/app/data.py` (tomados de `doc/TPI_G7_Crisantemo.xlsx`); el único dato modificable es el **Desperdicio Esperado**. En la pestaña Tablas, un checkbox permite propagar cambios de productos compartidos y pedir los valores de productos exclusivos de cada escenario.
 
 ### Ejecutar
 
@@ -79,10 +83,11 @@ Tests del backend: `cd backend && python -m pytest`.
 | ----- | ----- | ----- |
 | GET | `/api/criterios` | Criterios y su sentido (max/min) |
 | GET | `/api/tablas` | Las 3 matrices de decisión (con el desperdicio vigente) |
-| GET | `/api/pesos` | AHP (λ, IC, IA, RC) y CRITIC (σ, correlaciones, Cj, Wj) |
-| GET | `/api/topsis` · `/api/topsis/{tabla}` | TOPSIS con pesos AHP y CRITIC |
-| GET | `/api/sensibilidad/{tabla}?metodo=ahp\|critic&paso=0.05` | Variación del peso de cada criterio de 0 a 1 |
+| GET | `/api/pesos` | AHP (λ, IC, IA, RC), CRITIC (σ, correlaciones, Cj, Wj) y entropía (Hj, Dj, Wj) |
+| GET | `/api/topsis` · `/api/topsis/{tabla}` | TOPSIS con pesos AHP, CRITIC y entropía |
+| GET | `/api/sensibilidad/{tabla}?metodo=ahp\|critic\|entropia&paso=0.05` | Variación del peso de cada criterio de 0 a 1 |
 | POST | `/api/tablas/{tabla}/desperdicio` | `{"valores": {"A1": 5}}` — modifica el desperdicio y devuelve TOPSIS recalculado |
+| POST | `/api/desperdicio/multiple` | `{"tablas": {"habituales": {"A1": 5}, "especial": {"A1": 5}}}` — actualiza varias tablas en una transacción |
 | DELETE | `/api/tablas/{tabla}/desperdicio` | Restablece los valores del cliente |
 
 Tablas: `habituales`, `especial`, `nuevo_habitual`.

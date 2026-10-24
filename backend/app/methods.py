@@ -1,4 +1,4 @@
-"""Métodos de decisión multicriterio: AHP, CRITIC, TOPSIS y análisis de sensibilidad."""
+"""Métodos de decisión multicriterio: AHP, CRITIC, entropía, TOPSIS y sensibilidad."""
 
 import math
 from statistics import stdev
@@ -100,6 +100,60 @@ def critic(matriz, criterios):
         "correlaciones": correlaciones,
         "conflicto": conflicto,
         "informacion": informacion,
+        "pesos": pesos,
+    }
+
+
+def entropia(matriz, criterios):
+    """Calcula pesos objetivos por entropía, invirtiendo los criterios de costo."""
+    n = len(matriz)
+    m = len(criterios)
+    columnas = _columnas(matriz)
+
+    transformada_cols = []
+    normalizada_cols = []
+    for columna, criterio in zip(columnas, criterios):
+        if criterio["tipo"] == "max":
+            transformada = list(columna)
+        else:
+            # Se replica la transformación del Excel: 1/x para costos positivos;
+            # los ceros se conservan en cero para no dividir por cero.
+            transformada = [1 / valor if valor > 0 else 0.0 for valor in columna]
+
+        suma = sum(transformada)
+        if suma:
+            normalizada = [valor / suma for valor in transformada]
+        else:
+            # Un criterio sin valores transformados no discrimina alternativas.
+            normalizada = [1 / n] * n if n else []
+        transformada_cols.append(transformada)
+        normalizada_cols.append(normalizada)
+
+    normalizada = [list(fila) for fila in zip(*normalizada_cols)] if n else []
+    logaritmos_cols = [
+        [0.0 if proporcion == 0 else math.log(proporcion) for proporcion in columna]
+        for columna in normalizada_cols
+    ]
+    logaritmos = [list(fila) for fila in zip(*logaritmos_cols)] if n else []
+
+    # Shannon: k = 1/ln(n), entropía = -k * Σ(p * ln(p)).
+    factor = 1 / math.log(n) if n > 1 else 0.0
+    entropias = [
+        min(1.0, max(0.0, -factor * sum(p * log_p for p, log_p in zip(proporcion, logaritmo))))
+        for proporcion, logaritmo in zip(normalizada_cols, logaritmos_cols)
+    ]
+    divergencias = [1 - valor for valor in entropias]
+    total = sum(divergencias)
+    pesos = [valor / total for valor in divergencias] if total else ([1 / m] * m if m else [])
+
+    return {
+        "matriz_transformada": [list(fila) for fila in zip(*transformada_cols)] if n else [],
+        "normalizada": normalizada,
+        "logaritmos": logaritmos,
+        "factor_normalizacion": factor,
+        "cantidad_alternativas": n,
+        "entropias": entropias,
+        "divergencias": divergencias,
         "pesos": pesos,
     }
 

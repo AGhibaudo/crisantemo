@@ -10,7 +10,7 @@ import SensibilidadSection from './components/SensibilidadSection'
 const SECCIONES = [
   { id: 'guia', label: 'Guía' },
   { id: 'tablas', label: 'Tablas' },
-  { id: 'pesos', label: 'Pesos AHP / CRITIC' },
+  { id: 'pesos', label: 'Pesos AHP / CRITIC / Entropía' },
   { id: 'topsis', label: 'TOPSIS' },
   { id: 'sensibilidad', label: 'Análisis de sensibilidad' },
 ]
@@ -43,7 +43,7 @@ export default function App() {
         <div className="header-top">
           <div>
             <h1>Crisantemo</h1>
-            <p className="subtitle">Modelo de apoyo a la decisión multicriterio · AHP · CRITIC · TOPSIS</p>
+            <p className="subtitle">Modelo de apoyo a la decisión multicriterio · AHP · CRITIC · Entropía · TOPSIS</p>
           </div>
           <ThemeToggle />
         </div>

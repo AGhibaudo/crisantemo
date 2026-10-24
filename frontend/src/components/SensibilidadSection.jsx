@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { CartesianGrid, Legend, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api, fmt, pct } from '../api'
-import { NOMBRE_METODO, Selector } from './common'
+import { METODOS_PESOS, NOMBRE_METODO, Selector } from './common'
 
 const COLORES = Array.from({ length: 10 }, (_, i) => `var(--cat-${i + 1})`)
 
@@ -23,8 +23,10 @@ export default function SensibilidadSection({ datos, version }) {
 
   const comparacion = topsis.map((t) => {
     const lider = (m) => t.alternativas[t.resultados[m].ranking.indexOf(1)].nombre
-    const coinciden = t.resultados.ahp.ranking.filter((p, i) => p === t.resultados.critic.ranking[i]).length
-    return { id: t.tabla, nombre: t.nombre, ahp: lider('ahp'), critic: lider('critic'), coinciden, total: t.alternativas.length }
+    const lideres = Object.fromEntries(METODOS_PESOS.map(({ id }) => [id, lider(id)]))
+    const rankings = METODOS_PESOS.map(({ id }) => t.resultados[id].ranking)
+    const coinciden = rankings[0].filter((puesto, i) => rankings.every((ranking) => ranking[i] === puesto)).length
+    return { id: t.tabla, nombre: t.nombre, lideres, coinciden, total: t.alternativas.length }
   })
 
   const actual = sens && sens.tabla === tablaId && sens.metodo === metodo ? sens : null
@@ -40,24 +42,27 @@ export default function SensibilidadSection({ datos, version }) {
       <div className="section-head">
         <h2>Análisis de sensibilidad</h2>
         <p className="muted">
-          Se compara el resultado de TOPSIS con ambos juegos de pesos y se evalúa la robustez del ranking variando
+          Se compara el resultado de TOPSIS con los tres juegos de pesos y se evalúa la robustez del ranking variando
           el peso de cada criterio entre 0 y 1 (los demás se reescalan proporcionalmente para sumar 1).
         </p>
       </div>
 
       <div className="card">
-        <h3>AHP vs CRITIC</h3>
+        <h3>Comparación de líderes por método</h3>
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>Tabla</th><th>Líder con AHP</th><th>Líder con CRITIC</th><th>Puestos coincidentes</th></tr>
+              <tr>
+                <th>Tabla</th>
+                {METODOS_PESOS.map(({ id }) => <th key={id}>Líder con {NOMBRE_METODO[id]}</th>)}
+                <th>Puestos iguales en los tres</th>
+              </tr>
             </thead>
             <tbody>
               {comparacion.map((c) => (
                 <tr key={c.id}>
                   <th className="row-head">{c.nombre}</th>
-                  <td>{c.ahp}</td>
-                  <td>{c.critic}</td>
+                  {METODOS_PESOS.map(({ id }) => <td key={id}>{c.lideres[id]}</td>)}
                   <td className="num">{c.coinciden} / {c.total}</td>
                 </tr>
               ))}
@@ -67,11 +72,7 @@ export default function SensibilidadSection({ datos, version }) {
       </div>
 
       <Selector opciones={topsis.map((x) => ({ id: x.tabla, label: x.nombre }))} valor={tablaId} onChange={setTablaId} />
-      <Selector
-        opciones={[{ id: 'ahp', label: 'Pesos AHP' }, { id: 'critic', label: 'Pesos CRITIC' }]}
-        valor={metodo}
-        onChange={setMetodo}
-      />
+      <Selector opciones={METODOS_PESOS} valor={metodo} onChange={setMetodo} />
       <Selector opciones={criterios.map((c) => ({ id: c.id, label: `${c.id} · ${c.nombre}` }))} valor={criterioId} onChange={setCriterioId} />
 
       {error && <div className="alert error">{error}</div>}

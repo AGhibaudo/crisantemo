@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { fmt } from '../api'
-import { MatrizNumerica, NOMBRE_METODO, Selector, columnasCriterios } from './common'
+import { MatrizNumerica, METODOS_PESOS, NOMBRE_METODO, Selector, columnasCriterios } from './common'
 
 export default function TopsisSection({ datos }) {
   const { criterios, topsis } = datos
@@ -17,10 +17,10 @@ export default function TopsisSection({ datos }) {
   const ranking = t.alternativas
     .map((a, i) => ({
       ...a,
-      ahp: t.resultados.ahp.cercania[i],
-      critic: t.resultados.critic.cercania[i],
-      posAhp: t.resultados.ahp.ranking[i],
-      posCritic: t.resultados.critic.ranking[i],
+      ...Object.fromEntries(Object.keys(t.resultados).flatMap((m) => [
+        [m, t.resultados[m].cercania[i]],
+        [`pos${m}`, t.resultados[m].ranking[i]],
+      ])),
       dPos: r.d_positiva[i],
       dNeg: r.d_negativa[i],
       ci: r.cercania[i],
@@ -33,17 +33,13 @@ export default function TopsisSection({ datos }) {
       <div className="section-head">
         <h2>TOPSIS</h2>
         <p className="muted">
-          Normalización por suma de cuadrados, ponderación con los pesos de AHP o CRITIC, distancias euclídeas a
+          Normalización por suma de cuadrados, ponderación con los pesos de AHP, CRITIC o entropía, distancias euclídeas a
           las soluciones ideal (A⁺) y anti-ideal (A⁻), y coeficiente de cercanía Ci = d⁻ / (d⁺ + d⁻).
         </p>
       </div>
 
       <Selector opciones={topsis.map((x) => ({ id: x.tabla, label: x.nombre }))} valor={tablaId} onChange={setTablaId} />
-      <Selector
-        opciones={[{ id: 'ahp', label: 'Pesos AHP' }, { id: 'critic', label: 'Pesos CRITIC' }]}
-        valor={metodo}
-        onChange={setMetodo}
-      />
+      <Selector opciones={METODOS_PESOS} valor={metodo} onChange={setMetodo} />
 
       <div className="card">
         <h3>Ranking · {t.nombre} · pesos {NOMBRE_METODO[metodo]}</h3>
@@ -52,7 +48,7 @@ export default function TopsisSection({ datos }) {
             <thead>
               <tr>
                 <th>#</th><th>Alternativa</th><th>d⁺</th><th>d⁻</th><th>Ci</th>
-                <th>Puesto AHP</th><th>Puesto CRITIC</th>
+                {Object.keys(t.resultados).map((m) => <th key={m}>Puesto {NOMBRE_METODO[m]}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -63,8 +59,7 @@ export default function TopsisSection({ datos }) {
                   <td className="num">{fmt(a.dPos)}</td>
                   <td className="num">{fmt(a.dNeg)}</td>
                   <td className="num"><strong>{fmt(a.ci)}</strong></td>
-                  <td className="num">{a.posAhp}</td>
-                  <td className="num">{a.posCritic}</td>
+                  {Object.keys(t.resultados).map((m) => <td key={m} className="num">{a[`pos${m}`]}</td>)}
                 </tr>
               ))}
             </tbody>
@@ -78,8 +73,9 @@ export default function TopsisSection({ datos }) {
               <YAxis type="category" dataKey="nombre" width={190} stroke="var(--muted)" tick={{ fontSize: 12 }} />
               <Tooltip formatter={(v) => fmt(v)} contentStyle={{ background: 'var(--surface)', border: '1px solid var(--border)' }} />
               <Legend />
-              <Bar dataKey="ahp" name="Ci (AHP)" fill="var(--serie-1)" radius={[0, 4, 4, 0]} />
-              <Bar dataKey="critic" name="Ci (CRITIC)" fill="var(--serie-2)" radius={[0, 4, 4, 0]} />
+              {METODOS_PESOS.map(({ id }, i) => (
+                <Bar key={id} dataKey={id} name={`Ci (${NOMBRE_METODO[id]})`} fill={`var(--cat-${i + 1})`} radius={[0, 4, 4, 0]} />
+              ))}
             </BarChart>
           </ResponsiveContainer>
         </div>

@@ -20,6 +20,8 @@ export const api = {
     request(`/sensibilidad/${tabla}?metodo=${metodo}&paso=${paso}`),
   guardarDesperdicio: (tabla, valores) =>
     request(`/tablas/${tabla}/desperdicio`, { method: 'POST', body: JSON.stringify({ valores }) }),
+  guardarDesperdicios: (tablas) =>
+    request('/desperdicio/multiple', { method: 'POST', body: JSON.stringify({ tablas }) }),
   restablecerDesperdicio: (tabla) => request(`/tablas/${tabla}/desperdicio`, { method: 'DELETE' }),
 }
 

@@ -3,8 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from . import state
-from .data import AHP_MATRIZ, CRITERIOS, TABLA_CRITIC, TABLAS
-from .methods import ahp, critic, matriz_numerica, sensibilidad, topsis
+from .data import AHP_MATRIZ, CRITERIOS, TABLA_CRITIC, TABLA_ENTROPIA, TABLAS
+from .methods import ahp, critic, entropia, matriz_numerica, sensibilidad, topsis
 
 app = FastAPI(title="Crisantemo - Decisión Multicriterio", version="1.0.0")
 
@@ -15,12 +15,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-METODOS_PESOS = ("ahp", "critic")
+METODOS_PESOS = ("ahp", "critic", "entropia")
 
 
 class DesperdicioIn(BaseModel):
     # {alternativa_id: unidades descartadas por lote}
     valores: dict[str, float] = Field(..., examples=[{"A1": 5, "A3": 1}])
+
+
+class DesperdiciosMultiplesIn(BaseModel):
+    # {tabla_id: {alternativa_id: unidades descartadas por lote}}
+    tablas: dict[str, dict[str, float]]
 
 
 def _validar_tabla(tabla_id):
@@ -32,7 +37,13 @@ def _pesos(tablas):
     resultado_ahp = ahp(AHP_MATRIZ)
     matriz_critic = matriz_numerica(tablas[TABLA_CRITIC]["alternativas"], CRITERIOS)
     resultado_critic = critic(matriz_critic, CRITERIOS)
-    return {"ahp": resultado_ahp, "critic": {**resultado_critic, "tabla": TABLA_CRITIC}}
+    matriz_entropia = matriz_numerica(tablas[TABLA_ENTROPIA]["alternativas"], CRITERIOS)
+    resultado_entropia = entropia(matriz_entropia, CRITERIOS)
+    return {
+        "ahp": resultado_ahp,
+        "critic": {**resultado_critic, "tabla": TABLA_CRITIC},
+        "entropia": {**resultado_entropia, "tabla": TABLA_ENTROPIA},
+    }
 
 
 def _tabla_out(tabla):
@@ -114,6 +125,28 @@ def post_desperdicio(tabla_id: str, body: DesperdicioIn):
         raise HTTPException(400, f"El desperdicio no puede ser negativo: {', '.join(sorted(negativos))}")
 
     state.actualizar_desperdicio(tabla_id, body.valores)
+    return get_topsis()
+
+
+@app.post("/api/desperdicio/multiple")
+def post_desperdicios_multiples(body: DesperdiciosMultiplesIn):
+    for tabla_id, valores in body.tablas.items():
+        _validar_tabla(tabla_id)
+        ids = {a["id"] for a in TABLAS[tabla_id]["alternativas"]}
+        desconocidas = set(valores) - ids
+        if desconocidas:
+            raise HTTPException(
+                400,
+                f"Alternativas inexistentes en la tabla '{tabla_id}': {', '.join(sorted(desconocidas))}",
+            )
+        negativos = [k for k, v in valores.items() if v < 0]
+        if negativos:
+            raise HTTPException(
+                400,
+                f"El desperdicio no puede ser negativo en '{tabla_id}': {', '.join(sorted(negativos))}",
+            )
+
+    state.actualizar_desperdicios(body.tablas)
     return get_topsis()
 
 

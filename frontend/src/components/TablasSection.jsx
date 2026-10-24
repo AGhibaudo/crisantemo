@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { api, fmt } from '../api'
-import { NOMBRE_METODO, Selector, TipoBadge } from './common'
+import { METODOS_PESOS, NOMBRE_METODO, Selector, TipoBadge } from './common'
 
 export default function TablasSection({ datos, onCambio }) {
   const { criterios, tablas, topsis } = datos
   const [tablaId, setTablaId] = useState(tablas[0].id)
   const tabla = tablas.find((t) => t.id === tablaId)
   const [borrador, setBorrador] = useState({})
+  const [propagar, setPropagar] = useState(false)
+  const [valoresExclusivos, setValoresExclusivos] = useState({})
   const [estado, setEstado] = useState(null)
   const [guardando, setGuardando] = useState(false)
 
@@ -19,15 +21,64 @@ export default function TablasSection({ datos, onCambio }) {
     const v = borrador[a.id]
     return v === '' || v === undefined || Number.isNaN(Number(v)) || Number(v) < 0
   })
+  const nombresOrigen = new Set(tabla.alternativas.map((a) => a.nombre))
+  const exclusivos = tablas
+    .filter((destino) => destino.id !== tablaId)
+    .flatMap((destino) => destino.alternativas
+      .filter((a) => !nombresOrigen.has(a.nombre))
+      .map((a) => ({
+        tablaId: destino.id,
+        tablaNombre: destino.nombre,
+        alternativaId: a.id,
+        nombre: a.nombre,
+        desperdicioActual: a.desperdicio,
+        key: `${destino.id}:${a.id}`,
+      })))
+  const exclusivosInvalidos = propagar && exclusivos.some(({ key }) => {
+    const v = valoresExclusivos[key]
+    return v === '' || v === undefined || Number.isNaN(Number(v)) || Number(v) < 0
+  })
   const modificados = tabla.desperdicio_modificado
 
   async function guardar() {
     setGuardando(true)
     try {
-      const valores = Object.fromEntries(cambiados.map((a) => [a.id, Number(borrador[a.id])]))
-      await api.guardarDesperdicio(tablaId, valores)
+      if (propagar) {
+        const cambiosPorNombre = Object.fromEntries(cambiados.map((a) => [a.nombre, Number(borrador[a.id])]))
+        const valoresPorTabla = {}
+
+        for (const destino of tablas) {
+          const valores = {}
+          if (destino.id === tablaId) {
+            for (const alternativa of cambiados) {
+              valores[alternativa.id] = Number(borrador[alternativa.id])
+            }
+          } else {
+            for (const alternativa of destino.alternativas) {
+              const valorCompartido = cambiosPorNombre[alternativa.nombre]
+              if (valorCompartido !== undefined) valores[alternativa.id] = valorCompartido
+            }
+            for (const exclusivo of exclusivos.filter((item) => item.tablaId === destino.id)) {
+              valores[exclusivo.alternativaId] = Number(valoresExclusivos[exclusivo.key])
+            }
+          }
+          if (Object.keys(valores).length) valoresPorTabla[destino.id] = valores
+        }
+
+        await api.guardarDesperdicios(valoresPorTabla)
+      } else {
+        const valores = Object.fromEntries(cambiados.map((a) => [a.id, Number(borrador[a.id])]))
+        await api.guardarDesperdicio(tablaId, valores)
+      }
       await onCambio()
-      setEstado({ tipo: 'ok', texto: 'Desperdicio actualizado. TOPSIS recalculado.' })
+      setPropagar(false)
+      setValoresExclusivos({})
+      setEstado({
+        tipo: 'ok',
+        texto: propagar
+          ? 'Cambios guardados en las tablas. TOPSIS y los pesos se recalcularon.'
+          : 'Desperdicio actualizado. TOPSIS recalculado.',
+      })
     } catch (e) {
       setEstado({ tipo: 'error', texto: e.message })
     } finally {
@@ -40,6 +91,8 @@ export default function TablasSection({ datos, onCambio }) {
     try {
       await api.restablecerDesperdicio(tablaId)
       await onCambio()
+      setPropagar(false)
+      setValoresExclusivos({})
       setEstado({ tipo: 'ok', texto: 'Se restablecieron los valores del cliente.' })
     } catch (e) {
       setEstado({ tipo: 'error', texto: e.message })
@@ -57,14 +110,19 @@ export default function TablasSection({ datos, onCambio }) {
         <h2>Matrices de decisión</h2>
         <p className="muted">
           Datos provistos por el cliente. Solo el criterio <strong>Desperdicio Esperado</strong> es editable;
-          al guardar se recalcula TOPSIS.
+          al guardar se recalcula TOPSIS. Podés activar la propagación para replicar los cambios entre tablas.
         </p>
       </div>
 
       <Selector
         opciones={tablas.map((t) => ({ id: t.id, label: t.nombre }))}
         valor={tablaId}
-        onChange={(id) => { setTablaId(id); setEstado(null) }}
+        onChange={(id) => {
+          setTablaId(id)
+          setPropagar(false)
+          setValoresExclusivos({})
+          setEstado(null)
+        }}
       />
 
       <div className="card">
@@ -119,26 +177,71 @@ export default function TablasSection({ datos, onCambio }) {
           </table>
         </div>
 
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={propagar}
+            onChange={(e) => {
+              setPropagar(e.target.checked)
+              setValoresExclusivos({})
+            }}
+          />
+          <span>Propagar los cambios a las demás tablas</span>
+        </label>
+
+        {propagar && (
+          <div className="card sync-card">
+            <h3>Productos exclusivos de las otras tablas</h3>
+            <p className="muted small">
+              Los cambios de productos compartidos se copiarán automáticamente. Completá el desperdicio de los
+              productos que no aparecen en «{tabla.nombre}».
+            </p>
+            {exclusivos.length === 0 ? (
+              <p className="muted small">No hay productos exclusivos pendientes para esta tabla.</p>
+            ) : (
+              <div className="exclusive-fields">
+                {exclusivos.map((item) => (
+                  <label className="field-label" key={item.key}>
+                    <span>{item.nombre} <span className="muted">· {item.tablaNombre}</span></span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={valoresExclusivos[item.key] ?? ''}
+                      placeholder={`Valor actual: ${fmt(item.desperdicioActual, 0)}`}
+                      className={valoresExclusivos[item.key] === undefined || valoresExclusivos[item.key] === '' ? 'input invalid' : 'input'}
+                      onChange={(e) => setValoresExclusivos({ ...valoresExclusivos, [item.key]: e.target.value })}
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="actions">
-          <button className="btn primary" disabled={guardando || cambiados.length === 0 || invalidos.length > 0} onClick={guardar}>
-            {guardando ? 'Recalculando…' : `Guardar y recalcular TOPSIS${cambiados.length ? ` (${cambiados.length})` : ''}`}
+          <button
+            className="btn primary"
+            disabled={guardando || (cambiados.length === 0 && (!propagar || exclusivos.length === 0)) || invalidos.length > 0 || exclusivosInvalidos}
+            onClick={guardar}
+          >
+            {guardando ? 'Guardando…' : `Guardar y recalcular TOPSIS${propagar ? ' en todas las tablas' : ''}${cambiados.length ? ` (${cambiados.length})` : ''}`}
           </button>
           <button className="btn" disabled={guardando || Object.keys(modificados).length === 0} onClick={restablecer}>
-            Restablecer valores del cliente
+            Restablecer esta tabla
           </button>
           {invalidos.length > 0 && <span className="text-error">El desperdicio debe ser un número ≥ 0.</span>}
+          {exclusivosInvalidos && <span className="text-error">Completá un valor válido para cada producto exclusivo.</span>}
         </div>
-        {tablaId === 'habituales' && (
-          <p className="muted small">
-            Nota: los pesos CRITIC se calculan sobre esta matriz, por lo que modificar su desperdicio también
-            actualiza los pesos CRITIC usados en las tres tablas.
-          </p>
-        )}
+        <p className="muted small">
+          Los pesos CRITIC y de entropía se calculan sobre la tabla «Día habitual». Si un cambio propagado modifica
+          esa matriz, ambos pesos se recalculan para las tres tablas.
+        </p>
         {estado && <div className={`alert ${estado.tipo}`}>{estado.texto}</div>}
       </div>
 
       <div className="grid-2">
-        {['ahp', 'critic'].map((m) => (
+        {METODOS_PESOS.map(({ id: m }) => (
           <div className="card kpi" key={m}>
             <span className="muted">Mejor alternativa (TOPSIS con pesos {NOMBRE_METODO[m]})</span>
             <strong>{lider(m).nombre}</strong>

@@ -68,22 +68,31 @@ def modificados(tabla_id):
 
 
 def actualizar_desperdicio(tabla_id, valores):
-    originales = {a["id"]: a["desperdicio"] for a in TABLAS[tabla_id]["alternativas"]}
+    actualizar_desperdicios({tabla_id: valores})
+
+
+def actualizar_desperdicios(valores_por_tabla):
+    """Actualiza varios escenarios en una sola transacción SQLite."""
+    originales = {
+        tabla_id: {a["id"]: a["desperdicio"] for a in TABLAS[tabla_id]["alternativas"]}
+        for tabla_id in valores_por_tabla
+    }
     ahora = datetime.now(timezone.utc).isoformat(timespec="seconds")
     with closing(_conectar()) as conn, conn:
-        for alt_id, valor in valores.items():
-            if valor == originales[alt_id]:
-                conn.execute(
-                    "DELETE FROM desperdicio WHERE tabla_id = ? AND alternativa_id = ?", (tabla_id, alt_id)
-                )
-            else:
-                conn.execute(
-                    """INSERT INTO desperdicio (tabla_id, alternativa_id, valor, actualizado)
-                       VALUES (?, ?, ?, ?)
-                       ON CONFLICT (tabla_id, alternativa_id)
-                       DO UPDATE SET valor = excluded.valor, actualizado = excluded.actualizado""",
-                    (tabla_id, alt_id, valor, ahora),
-                )
+        for tabla_id, valores in valores_por_tabla.items():
+            for alt_id, valor in valores.items():
+                if valor == originales[tabla_id][alt_id]:
+                    conn.execute(
+                        "DELETE FROM desperdicio WHERE tabla_id = ? AND alternativa_id = ?", (tabla_id, alt_id)
+                    )
+                else:
+                    conn.execute(
+                        """INSERT INTO desperdicio (tabla_id, alternativa_id, valor, actualizado)
+                           VALUES (?, ?, ?, ?)
+                           ON CONFLICT (tabla_id, alternativa_id)
+                           DO UPDATE SET valor = excluded.valor, actualizado = excluded.actualizado""",
+                        (tabla_id, alt_id, valor, ahora),
+                    )
 
 
 def restablecer(tabla_id=None):

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, fmt } from '../api'
-import { Selector } from './common'
+import { METODOS_PESOS, NOMBRE_METODO, Selector } from './common'
 
 const EXPLICACION = {
   demanda: 'Cuántas unidades se espera vender.',
@@ -20,6 +20,10 @@ const MIRADAS = {
   critic: {
     titulo: 'Según los números',
     detalle: 'Surge de los propios datos: pesa más lo que más diferencia a un producto de otro.',
+  },
+  entropia: {
+    titulo: 'Según la diversidad de los datos',
+    detalle: 'Pesa más los criterios que distinguen en mayor medida a las alternativas.',
   },
 }
 
@@ -62,8 +66,11 @@ export default function GuiaSection({ datos, version, irA }) {
 
   useEffect(() => {
     let vigente = true
-    Promise.all([api.sensibilidad(tablaId, 'ahp'), api.sensibilidad(tablaId, 'critic')])
-      .then(([ahp, critic]) => vigente && setSens({ tabla: tablaId, ahp, critic }))
+    Promise.all(METODOS_PESOS.map(({ id }) => api.sensibilidad(tablaId, id)))
+      .then((resultados) => vigente && setSens({
+        tabla: tablaId,
+        ...Object.fromEntries(resultados.map((resultado) => [resultado.metodo, resultado])),
+      }))
       .catch(() => vigente && setSens({}))
     return () => { vigente = false }
   }, [tablaId, version])
@@ -73,9 +80,9 @@ export default function GuiaSection({ datos, version, irA }) {
     t.alternativas
       .map((a, i) => ({ ...a, ci: t.resultados[m].cercania[i], pos: t.resultados[m].ranking[i] }))
       .sort((a, b) => a.pos - b.pos)
-  const podioAhp = podio('ahp')
-  const podioCritic = podio('critic')
-  const coinciden = podioAhp[0].id === podioCritic[0].id
+  const podios = Object.fromEntries(METODOS_PESOS.map(({ id }) => [id, podio(id)]))
+  const lideres = Object.fromEntries(METODOS_PESOS.map(({ id }) => [id, podios[id][0]]))
+  const coinciden = new Set(Object.values(lideres).map((a) => a.id)).size === 1
 
   const importancia = (m) =>
     criterios.map((c, j) => ({ ...c, peso: pesos[m].pesos[j] })).sort((a, b) => b.peso - a.peso)
@@ -125,11 +132,11 @@ export default function GuiaSection({ datos, version, irA }) {
       <div className="card">
         <h3>3. ¿Qué es lo más importante?</h3>
         <p>
-          No todos los aspectos pesan lo mismo. Se calcularon dos formas de repartir la importancia, y se
-          muestran ambas para comparar:
+          No todos los aspectos pesan lo mismo. Se calculan tres formas de repartir la importancia, y se
+          muestran para comparar:
         </p>
         <div className="grid-2">
-          {['ahp', 'critic'].map((m) => (
+          {METODOS_PESOS.map(({ id: m }) => (
             <div key={m} className="guia-item">
               <strong>{MIRADAS[m].titulo}</strong>
               <p className="small muted">{MIRADAS[m].detalle}</p>
@@ -145,9 +152,9 @@ export default function GuiaSection({ datos, version, irA }) {
         </div>
         {!pesos.ahp.consistente && (
           <p className="small muted">
-            ¿Por qué dos formas? Al comparar los aspectos de a pares, las respuestas del cliente tuvieron algunas
+            ¿Por qué tres formas? Al comparar los aspectos de a pares, las respuestas del cliente tuvieron algunas
             contradicciones (por ejemplo, decir que A importa más que B, B más que C, pero C más que A). Por eso,
-            además de su opinión, se calculó una segunda versión basada solo en los datos.
+            además de su opinión, se calcularon dos versiones basadas solo en los datos.
           </p>
         )}
       </div>
@@ -156,29 +163,33 @@ export default function GuiaSection({ datos, version, irA }) {
         <h3>4. ¿Qué conviene producir?</h3>
         <Selector opciones={topsis.map((x) => ({ id: x.tabla, label: x.nombre }))} valor={tablaId} onChange={setTablaId} />
         <div className="grid-2">
-          {[['ahp', podioAhp], ['critic', podioCritic]].map(([m, lista]) => (
-            <div key={m} className="guia-item">
-              <strong>{MIRADAS[m].titulo}</strong>
-              <ol className="podio">
-                {lista.map((a, i) => (
-                  <li key={a.id} className={i === 0 ? 'primero' : i < 3 ? 'top' : ''}>
-                    <span>{a.nombre}</span>
-                    <Barra valor={a.ci} metodo={m} />
-                    <span className="num"><strong>{puntaje(a.ci)}</strong><span className="muted small"> / 100</span></span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          ))}
+          {METODOS_PESOS.map(({ id: m }) => {
+            const lista = podios[m]
+            return (
+              <div key={m} className="guia-item">
+                <strong>{MIRADAS[m].titulo}</strong>
+                <ol className="podio">
+                  {lista.map((a, i) => (
+                    <li key={a.id} className={i === 0 ? 'primero' : i < 3 ? 'top' : ''}>
+                      <span>{a.nombre}</span>
+                      <Barra valor={a.ci} metodo={m} />
+                      <span className="num"><strong>{puntaje(a.ci)}</strong><span className="muted small"> / 100</span></span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )
+          })}
         </div>
         <div className={`alert ${coinciden ? 'ok' : 'info'}`}>
           {coinciden ? (
-            <>Las dos miradas coinciden: <strong>{podioAhp[0].nombre}</strong> es el producto más conveniente.</>
+            <>Los tres métodos coinciden: <strong>{lideres.ahp.nombre}</strong> es el producto mejor posicionado.</>
           ) : (
             <>
-              Las miradas no coinciden: según el cliente conviene <strong>{podioAhp[0].nombre}</strong> y según los
-              números <strong>{podioCritic[0].nombre}</strong>. Los productos que aparecen arriba en ambas listas son
-              una apuesta segura.
+              Los métodos no coinciden en el primer puesto:{' '}
+              {METODOS_PESOS.map(({ id: metodoId }, i) => (
+                <span key={metodoId}>{i > 0 ? '; ' : ''}{NOMBRE_METODO[metodoId]} prioriza <strong>{lideres[metodoId].nombre}</strong></span>
+              ))}.
             </>
           )}
         </div>
@@ -224,7 +235,7 @@ export default function GuiaSection({ datos, version, irA }) {
         </p>
         {sens.tabla === tablaId ? (
           <div className="grid-2">
-            {['ahp', 'critic'].map((m) => {
+            {METODOS_PESOS.map(({ id: m }) => {
               const r = sens[m]
               const ganador = r.alternativas[r.lider_base].nombre
               const avisos = r.criterios
@@ -272,6 +283,7 @@ export default function GuiaSection({ datos, version, irA }) {
           <dt>AHP</dt><dd>Método que calcula los pesos a partir de la opinión del cliente.</dd>
           <dt>RC (razón de consistencia)</dt><dd>Mide si esas opiniones son coherentes entre sí. Por encima de 0,10 hay contradicciones.</dd>
           <dt>CRITIC</dt><dd>Método que calcula los pesos a partir de los datos.</dd>
+          <dt>Entropía</dt><dd>Método objetivo que asigna más peso a los criterios que más diferencian las alternativas.</dd>
           <dt>TOPSIS</dt><dd>Método que arma el ranking comparando cada producto con el ideal y con el peor.</dd>
           <dt>Ci (coeficiente de cercanía)</dt><dd>El puntaje de cada producto, entre 0 y 1 (en esta guía, de 0 a 100).</dd>
           <dt>Análisis de sensibilidad</dt><dd>Prueba de qué tan firme es el ranking si cambian los pesos.</dd>

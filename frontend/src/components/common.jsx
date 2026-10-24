@@ -57,4 +57,10 @@ export const columnasCriterios = (criterios) =>
     ),
   }))
 
-export const NOMBRE_METODO = { ahp: 'AHP', critic: 'CRITIC' }
+export const METODOS_PESOS = [
+  { id: 'ahp', label: 'Pesos AHP' },
+  { id: 'critic', label: 'Pesos CRITIC' },
+  { id: 'entropia', label: 'Pesos Entropía' },
+]
+
+export const NOMBRE_METODO = { ahp: 'AHP', critic: 'CRITIC', entropia: 'Entropía' }

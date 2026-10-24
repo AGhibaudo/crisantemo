@@ -4,16 +4,18 @@ import { MatrizNumerica } from './common'
 
 export default function PesosSection({ datos }) {
   const { criterios, pesos, tablas } = datos
-  const { ahp, critic } = pesos
+  const { ahp, critic, entropia } = pesos
   const filasCrit = criterios.map((c) => ({ key: c.id, label: `${c.id} · ${c.nombre}` }))
   const colsCrit = criterios.map((c) => ({ key: c.id, label: c.id }))
   const tablaCritic = tablas.find((t) => t.id === critic.tabla)
+  const tablaEntropia = tablas.find((t) => t.id === entropia.tabla)
 
   const comparacion = criterios.map((c, j) => ({
     criterio: c.id,
     nombre: c.nombre,
     AHP: ahp.pesos[j],
     CRITIC: critic.pesos[j],
+    entropia: entropia.pesos[j],
   }))
 
   return (
@@ -22,7 +24,7 @@ export default function PesosSection({ datos }) {
         <h2>Determinación de los pesos</h2>
         <p className="muted">
           AHP refleja las preferencias del cliente (comparación por pares). Como su razón de consistencia
-          supera 0,10, se calculan también pesos objetivos con CRITIC a partir de los datos.
+          supera 0,10, se comparan con los pesos objetivos de CRITIC y entropía, calculados a partir de los datos.
         </p>
       </div>
 
@@ -31,7 +33,7 @@ export default function PesosSection({ datos }) {
         <div className="table-wrap">
           <table>
             <thead>
-              <tr><th>Criterio</th><th>Tipo</th><th>Peso AHP</th><th>Peso CRITIC</th><th>Diferencia</th></tr>
+              <tr><th>Criterio</th><th>Tipo</th><th>Peso AHP</th><th>Peso CRITIC</th><th>Peso Entropía</th></tr>
             </thead>
             <tbody>
               {comparacion.map((c, j) => (
@@ -40,7 +42,7 @@ export default function PesosSection({ datos }) {
                   <td>{criterios[j].tipo === 'max' ? 'Beneficio' : 'Costo'}</td>
                   <td className="num">{pct(c.AHP)}</td>
                   <td className="num">{pct(c.CRITIC)}</td>
-                  <td className="num">{pct(c.CRITIC - c.AHP)}</td>
+                  <td className="num">{pct(c.entropia)}</td>
                 </tr>
               ))}
             </tbody>
@@ -60,6 +62,7 @@ export default function PesosSection({ datos }) {
               <Legend />
               <Bar dataKey="AHP" fill="var(--serie-1)" radius={[4, 4, 0, 0]} />
               <Bar dataKey="CRITIC" fill="var(--serie-2)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="entropia" name="Entropía" fill="var(--cat-3)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -81,6 +84,51 @@ export default function PesosSection({ datos }) {
         filas={filasCrit}
         columnas={[...colsCrit, { key: 'w', label: 'W' }, { key: 'aw', label: 'AW' }, { key: 'aww', label: 'AW / W' }]}
         valores={ahp.normalizada.map((f, i) => [...f, ahp.pesos[i], ahp.aw[i], ahp.aw_w[i]])}
+      />
+
+      <h2 className="subsection">Entropía</h2>
+      <p className="muted">Calculada sobre la matriz «{tablaEntropia.nombre}».</p>
+      <div className="grid-2">
+        <div className="card kpi">
+          <span className="muted">Alternativas (n)</span>
+          <strong>{entropia.cantidad_alternativas}</strong>
+        </div>
+        <div className="card kpi">
+          <span className="muted">k = 1 / ln(n)</span>
+          <strong>{fmt(entropia.factor_normalizacion)}</strong>
+        </div>
+      </div>
+      <p className="muted small">
+        Se usa 1/x para transformar criterios de costo. Para pᵢⱼ = 0, el logaritmo se define como 0 y su aporte
+        pᵢⱼ · ln(pᵢⱼ) queda en 0.
+      </p>
+      <MatrizNumerica
+        titulo="Matriz transformada (beneficio: x · costo: 1/x)"
+        filas={tablaEntropia.alternativas.map((a) => ({ key: a.id, label: `${a.id} · ${a.nombre}` }))}
+        columnas={colsCrit}
+        valores={entropia.matriz_transformada}
+      />
+      <MatrizNumerica
+        titulo="Matriz normalizada pᵢⱼ = xᵢⱼ / Σxᵢⱼ"
+        filas={tablaEntropia.alternativas.map((a) => ({ key: a.id, label: `${a.id} · ${a.nombre}` }))}
+        columnas={colsCrit}
+        valores={entropia.normalizada}
+      />
+      <MatrizNumerica
+        titulo="Logaritmo natural de la matriz normalizada (ln(0) se representa como 0)"
+        filas={tablaEntropia.alternativas.map((a) => ({ key: a.id, label: `${a.id} · ${a.nombre}` }))}
+        columnas={colsCrit}
+        valores={entropia.logaritmos}
+      />
+      <MatrizNumerica
+        titulo="Entropía y pesos · Hⱼ = −k Σ(pᵢⱼ ln pᵢⱼ), Dⱼ = 1 − Hⱼ, Wⱼ = Dⱼ / ΣDⱼ"
+        filas={[
+          { key: 'entropia', label: 'Hⱼ (entropía)' },
+          { key: 'divergencia', label: 'Dⱼ (divergencia)' },
+          { key: 'peso', label: 'Wⱼ (peso)' },
+        ]}
+        columnas={colsCrit}
+        valores={[entropia.entropias, entropia.divergencias, entropia.pesos]}
       />
 
       <h2 className="subsection">CRITIC</h2>
