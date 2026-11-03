@@ -22,7 +22,7 @@ def limpiar_estado():
 
 
 def test_pesos_coinciden_con_excel():
-    p = client.get("/api/pesos").json()
+    p = client.get("/api/pesos").json()["habituales"]
     assert p["ahp"]["pesos"] == pytest.approx(PESOS_AHP_EXCEL, abs=1e-9)
     assert p["ahp"]["lambda_max"] == pytest.approx(12.45449511, abs=1e-7)
     assert p["ahp"]["rc"] == pytest.approx(0.6886988774, abs=1e-9)
@@ -55,13 +55,13 @@ def test_post_desperdicio_recalcula_topsis():
 
 def test_desperdicio_habituales_recalcula_critic():
     client.post("/api/tablas/habituales/desperdicio", json={"valores": {"A1": 1}})
-    assert client.get("/api/pesos").json()["critic"]["pesos"] != pytest.approx(PESOS_CRITIC_EXCEL)
+    assert client.get("/api/pesos/habituales").json()["critic"]["pesos"] != pytest.approx(PESOS_CRITIC_EXCEL)
 
 
 def test_restablecer_desperdicio():
     client.post("/api/tablas/habituales/desperdicio", json={"valores": {"A1": 1}})
     client.delete("/api/tablas/habituales/desperdicio")
-    assert client.get("/api/pesos").json()["critic"]["pesos"] == pytest.approx(PESOS_CRITIC_EXCEL, abs=1e-9)
+    assert client.get("/api/pesos/habituales").json()["critic"]["pesos"] == pytest.approx(PESOS_CRITIC_EXCEL, abs=1e-9)
 
 
 @pytest.mark.parametrize("valores, codigo", [({"A99": 1}, 400), ({"A1": -1}, 400), ({"A1": "x"}, 422)])
@@ -73,7 +73,7 @@ def test_desperdicio_uniforme_no_rompe():
     valores = {f"A{i}": 2 for i in range(1, 10)}
     r = client.post("/api/tablas/habituales/desperdicio", json={"valores": valores})
     assert r.status_code == 200
-    assert math.isclose(sum(client.get("/api/pesos").json()["critic"]["pesos"]), 1)
+    assert math.isclose(sum(client.get("/api/pesos/habituales").json()["critic"]["pesos"]), 1)
 
 
 def test_sensibilidad():
@@ -98,3 +98,39 @@ def test_desperdicio_persiste_en_sqlite():
     # Volver al valor original del cliente elimina la fila.
     client.post("/api/tablas/nuevo_habitual/desperdicio", json={"valores": {"A2": 0}})
     assert state.modificados("nuevo_habitual") == {"A10": 1.0}
+
+
+def test_pesos_por_tabla():
+    p = client.get("/api/pesos").json()
+    assert set(p) == {"habituales", "especial", "nuevo_habitual"}
+    for tabla_id, pesos in p.items():
+        for m in ("ahp", "critic", "entropia"):
+            assert pesos[m]["tabla"] == tabla_id
+            assert math.isclose(sum(pesos[m]["pesos"]), 1)
+        # AHP no depende de las alternativas.
+        assert pesos["ahp"]["pesos"] == pytest.approx(PESOS_AHP_EXCEL, abs=1e-9)
+    # La alternativa agregada cambia los pesos objetivos.
+    for tabla_id in ("especial", "nuevo_habitual"):
+        assert p[tabla_id]["critic"]["pesos"] != pytest.approx(p["habituales"]["critic"]["pesos"])
+        assert p[tabla_id]["entropia"]["pesos"] != pytest.approx(p["habituales"]["entropia"]["pesos"])
+        assert p[tabla_id]["entropia"]["cantidad_alternativas"] == 10
+
+
+def test_topsis_usa_pesos_de_su_tabla():
+    pesos = client.get("/api/pesos").json()
+    for t in client.get("/api/topsis").json():
+        for m in ("ahp", "critic", "entropia"):
+            assert t["pesos"][m] == pytest.approx(pesos[t["tabla"]][m]["pesos"])
+
+
+def test_desperdicio_solo_cambia_pesos_de_su_tabla():
+    antes = client.get("/api/pesos").json()
+    client.post("/api/tablas/nuevo_habitual/desperdicio", json={"valores": {"A10": 9}})
+    despues = client.get("/api/pesos").json()
+    assert despues["nuevo_habitual"]["critic"]["pesos"] != pytest.approx(antes["nuevo_habitual"]["critic"]["pesos"])
+    assert despues["habituales"]["critic"]["pesos"] == pytest.approx(antes["habituales"]["critic"]["pesos"])
+    assert despues["especial"]["entropia"]["pesos"] == pytest.approx(antes["especial"]["entropia"]["pesos"])
+
+
+def test_pesos_tabla_inexistente():
+    assert client.get("/api/pesos/xx").status_code == 404

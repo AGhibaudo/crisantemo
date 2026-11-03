@@ -1,10 +1,12 @@
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { useState } from 'react'
 import { fmt, pct } from '../api'
-import { MatrizNumerica } from './common'
+import { MatrizNumerica, Selector } from './common'
 
 export default function PesosSection({ datos }) {
-  const { criterios, pesos, tablas } = datos
-  const { ahp, critic, entropia } = pesos
+  const { criterios, pesos: pesosPorTabla, tablas } = datos
+  const [tablaId, setTablaId] = useState(tablas[0].id)
+  const { ahp, critic, entropia } = pesosPorTabla[tablaId]
   const filasCrit = criterios.map((c) => ({ key: c.id, label: `${c.id} · ${c.nombre}` }))
   const colsCrit = criterios.map((c) => ({ key: c.id, label: c.id }))
   const tablaCritic = tablas.find((t) => t.id === critic.tabla)
@@ -25,11 +27,16 @@ export default function PesosSection({ datos }) {
         <p className="muted">
           AHP refleja las preferencias del cliente (comparación por pares). Como su razón de consistencia
           supera 0,10, se comparan con los pesos objetivos de CRITIC y entropía, calculados a partir de los datos.
+          Cada tabla calcula sus propios pesos: agregar una alternativa cambia la variabilidad, la correlación y la
+          distribución de los valores de cada criterio, y con ello los pesos de CRITIC y entropía. AHP no depende de
+          las alternativas, por lo que su resultado es el mismo en todas las tablas.
         </p>
       </div>
 
+      <Selector opciones={tablas.map((t) => ({ id: t.id, label: t.nombre }))} valor={tablaId} onChange={setTablaId} />
+
       <div className="card">
-        <h3>Comparación de pesos</h3>
+        <h3>Comparación de pesos · {tablaCritic.nombre}</h3>
         <div className="table-wrap">
           <table>
             <thead>
@@ -65,6 +72,39 @@ export default function PesosSection({ datos }) {
               <Bar dataKey="entropia" name="Entropía" fill="var(--cat-3)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3>Pesos objetivos por tabla</h3>
+        <p className="muted small">Variación de los pesos CRITIC y entropía según las alternativas de cada tabla.</p>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th rowSpan={2}>Criterio</th>
+                <th colSpan={tablas.length}>CRITIC</th>
+                <th colSpan={tablas.length}>Entropía</th>
+              </tr>
+              <tr>
+                {['critic', 'entropia'].flatMap((m) => tablas.map((t) => (
+                  <th key={`${m}-${t.id}`} className={t.id === tablaId ? 'highlight' : ''}>{t.nombre}</th>
+                )))}
+              </tr>
+            </thead>
+            <tbody>
+              {criterios.map((c, j) => (
+                <tr key={c.id}>
+                  <th className="row-head">{c.id} · {c.nombre}</th>
+                  {['critic', 'entropia'].flatMap((m) => tablas.map((t) => (
+                    <td key={`${m}-${t.id}`} className={`num ${t.id === tablaId ? 'highlight' : ''}`}>
+                      {pct(pesosPorTabla[t.id][m].pesos[j])}
+                    </td>
+                  )))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 

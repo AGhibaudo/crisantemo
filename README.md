@@ -83,7 +83,7 @@ Tests del backend: `cd backend && python -m pytest`.
 | ----- | ----- | ----- |
 | GET | `/api/criterios` | Criterios y su sentido (max/min) |
 | GET | `/api/tablas` | Las 3 matrices de decisión (con el desperdicio vigente) |
-| GET | `/api/pesos` | AHP (λ, IC, IA, RC), CRITIC (σ, correlaciones, Cj, Wj) y entropía (Hj, Dj, Wj) |
+| GET | `/api/pesos` · `/api/pesos/{tabla}` | Pesos por tabla: AHP (λ, IC, IA, RC), CRITIC (σ, correlaciones, Cj, Wj) y entropía (Hj, Dj, Wj) calculados sobre las alternativas de cada tabla |
 | GET | `/api/topsis` · `/api/topsis/{tabla}` | TOPSIS con pesos AHP, CRITIC y entropía |
 | GET | `/api/sensibilidad/{tabla}?metodo=ahp\|critic\|entropia&paso=0.05` | Variación del peso de cada criterio de 0 a 1 |
 | POST | `/api/tablas/{tabla}/desperdicio` | `{"valores": {"A1": 5}}` — modifica el desperdicio y devuelve TOPSIS recalculado |

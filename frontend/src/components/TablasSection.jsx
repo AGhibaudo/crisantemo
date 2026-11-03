@@ -256,8 +256,8 @@ export default function TablasSection({ datos, onCambio }) {
           {exclusivosInvalidos && <span className="text-error">Completá un valor válido para cada producto exclusivo.</span>}
         </div>
         <p className="muted small">
-          Los pesos CRITIC y de entropía se calculan sobre la tabla «Día habitual». Si un cambio propagado modifica
-          esa matriz, ambos pesos se recalculan para las tres tablas.
+          Cada tabla calcula sus propios pesos CRITIC y de entropía a partir de sus alternativas. Al modificar el
+          desperdicio de una tabla se recalculan sus pesos y su TOPSIS; con la propagación, los de todas las tablas.
         </p>
         {estado && <div className={`alert ${estado.tipo}`}>{estado.texto}</div>}
       </div>

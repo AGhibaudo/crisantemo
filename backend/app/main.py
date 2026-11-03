@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from . import state
-from .data import AHP_MATRIZ, CRITERIOS, TABLA_CRITIC, TABLA_ENTROPIA, TABLAS
+from .data import AHP_MATRIZ, CRITERIOS, TABLAS
 from .methods import ahp, critic, entropia, matriz_numerica, sensibilidad, topsis
 
 app = FastAPI(title="Crisantemo - Decisión Multicriterio", version="1.0.0")
@@ -33,17 +33,26 @@ def _validar_tabla(tabla_id):
         raise HTTPException(404, f"Tabla '{tabla_id}' inexistente. Opciones: {', '.join(TABLAS)}")
 
 
-def _pesos(tablas):
-    resultado_ahp = ahp(AHP_MATRIZ)
-    matriz_critic = matriz_numerica(tablas[TABLA_CRITIC]["alternativas"], CRITERIOS)
-    resultado_critic = critic(matriz_critic, CRITERIOS)
-    matriz_entropia = matriz_numerica(tablas[TABLA_ENTROPIA]["alternativas"], CRITERIOS)
-    resultado_entropia = entropia(matriz_entropia, CRITERIOS)
+def _pesos_tabla(tabla):
+    """Pesos de los tres métodos calculados sobre la matriz de esta tabla.
+
+    CRITIC y entropía dependen de las alternativas (una nueva alternativa cambia
+    la variabilidad, la correlación y la distribución de cada criterio). AHP surge
+    de la comparación por pares de criterios del cliente, por lo que se recalcula
+    por tabla pero su resultado no depende de las alternativas.
+    """
+    matriz = matriz_numerica(tabla["alternativas"], CRITERIOS)
     return {
-        "ahp": resultado_ahp,
-        "critic": {**resultado_critic, "tabla": TABLA_CRITIC},
-        "entropia": {**resultado_entropia, "tabla": TABLA_ENTROPIA},
+        "tabla": tabla["id"],
+        "ahp": {**ahp(AHP_MATRIZ), "tabla": tabla["id"]},
+        "critic": {**critic(matriz, CRITERIOS), "tabla": tabla["id"]},
+        "entropia": {**entropia(matriz, CRITERIOS), "tabla": tabla["id"]},
     }
+
+
+def _pesos(tablas):
+    """{tabla_id: {ahp, critic, entropia}}"""
+    return {tabla_id: _pesos_tabla(t) for tabla_id, t in tablas.items()}
 
 
 def _tabla_out(tabla):
@@ -54,13 +63,15 @@ def _tabla_out(tabla):
     }
 
 
-def _topsis_tabla(tabla, pesos):
+def _topsis_tabla(tabla):
     matriz = matriz_numerica(tabla["alternativas"], CRITERIOS)
+    pesos = _pesos_tabla(tabla)
     return {
         "tabla": tabla["id"],
         "nombre": tabla["nombre"],
         "alternativas": [{"id": a["id"], "nombre": a["nombre"]} for a in tabla["alternativas"]],
         "matriz": matriz,
+        "pesos": {m: pesos[m]["pesos"] for m in METODOS_PESOS},
         "resultados": {m: topsis(matriz, pesos[m]["pesos"], CRITERIOS) for m in METODOS_PESOS},
     }
 
@@ -80,18 +91,21 @@ def get_pesos():
     return _pesos(state.tablas_actuales())
 
 
+@app.get("/api/pesos/{tabla_id}")
+def get_pesos_tabla(tabla_id: str):
+    _validar_tabla(tabla_id)
+    return _pesos_tabla(state.tablas_actuales()[tabla_id])
+
+
 @app.get("/api/topsis")
 def get_topsis():
-    tablas = state.tablas_actuales()
-    pesos = _pesos(tablas)
-    return [_topsis_tabla(t, pesos) for t in tablas.values()]
+    return [_topsis_tabla(t) for t in state.tablas_actuales().values()]
 
 
 @app.get("/api/topsis/{tabla_id}")
 def get_topsis_tabla(tabla_id: str):
     _validar_tabla(tabla_id)
-    tablas = state.tablas_actuales()
-    return _topsis_tabla(tablas[tabla_id], _pesos(tablas))
+    return _topsis_tabla(state.tablas_actuales()[tabla_id])
 
 
 @app.get("/api/sensibilidad/{tabla_id}")
@@ -101,9 +115,8 @@ def get_sensibilidad(tabla_id: str, metodo: str = "ahp", paso: float = 0.05):
         raise HTTPException(400, f"Método inválido. Opciones: {', '.join(METODOS_PESOS)}")
     if not 0.01 <= paso <= 0.25:
         raise HTTPException(400, "El paso debe estar entre 0.01 y 0.25")
-    tablas = state.tablas_actuales()
-    tabla = tablas[tabla_id]
-    pesos = _pesos(tablas)[metodo]["pesos"]
+    tabla = state.tablas_actuales()[tabla_id]
+    pesos = _pesos_tabla(tabla)[metodo]["pesos"]
     matriz = matriz_numerica(tabla["alternativas"], CRITERIOS)
     return {
         "tabla": tabla_id,

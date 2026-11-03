@@ -60,8 +60,9 @@ function cambioCercano(c, liderBase) {
 }
 
 export default function GuiaSection({ datos, version, irA }) {
-  const { criterios, pesos, topsis } = datos
+  const { criterios, pesos: pesosPorTabla, topsis } = datos
   const [tablaId, setTablaId] = useState(topsis[0].tabla)
+  const pesos = pesosPorTabla[tablaId]
   const [sens, setSens] = useState({})
 
   useEffect(() => {
@@ -133,8 +134,9 @@ export default function GuiaSection({ datos, version, irA }) {
         <h3>3. ¿Qué es lo más importante?</h3>
         <p>
           No todos los aspectos pesan lo mismo. Se calculan tres formas de repartir la importancia, y se
-          muestran para comparar:
+          muestran para comparar. Las dos basadas en datos cambian según los productos de cada situación:
         </p>
+        <Selector opciones={topsis.map((x) => ({ id: x.tabla, label: x.nombre }))} valor={tablaId} onChange={setTablaId} />
         <div className="grid-2">
           {METODOS_PESOS.map(({ id: m }) => (
             <div key={m} className="guia-item">
