@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, fmt } from '../api'
-import { METODOS_PESOS, NOMBRE_METODO, Selector, TipoBadge } from './common'
+import { METODOS_TOPSIS, NOMBRE_METODO, Selector, TipoBadge } from './common'
 
 export default function TablasSection({ datos, onCambio }) {
   const { criterios, tablas, topsis } = datos
@@ -263,7 +263,7 @@ export default function TablasSection({ datos, onCambio }) {
       </div>
 
       <div className="grid-2">
-        {METODOS_PESOS.map(({ id: m }) => (
+        {METODOS_TOPSIS.map(({ id: m }) => (
           <div className="card kpi" key={m}>
             <span className="muted">Mejor alternativa (TOPSIS con pesos {NOMBRE_METODO[m]})</span>
             <strong>{lider(m).nombre}</strong>

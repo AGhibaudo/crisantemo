@@ -25,13 +25,13 @@ El modelo contempla factores económicos, productivos, comerciales y operativos,
 
 El problema se aborda como un Problema de Decisión Multicriterio (MCDA) comparando tres métodos para ponderar los criterios y TOPSIS para ordenar las alternativas:
 
-1. **AHP (Analytic Hierarchy Process):** Utilizado para determinar la ponderación y los pesos relativos ($w_j$) de los criterios de evaluación a partir de comparaciones por pares de las preferencias del cliente, validando la consistencia mediante el Índice de Consistencia ($IC$).
+1. **AHP (Analytic Hierarchy Process):** Utilizado para determinar la ponderación y los pesos relativos ($w_j$) de los criterios de evaluación a partir de comparaciones por pares de las preferencias del cliente, validando la consistencia mediante la Razón de Consistencia ($RC$). Como $RC > 0,10$, los juicios resultan inconsistentes: sus pesos solo se muestran en la pestaña de pesos y **no se usan para calcular TOPSIS ni el análisis de sensibilidad**.
 
 2. **CRITIC:** Calcula pesos objetivos usando la variabilidad de cada criterio y su correlación con los demás.
 
 3. **Entropía:** Calcula pesos objetivos a partir de la distribución normalizada de los valores. Los criterios de costo se transforman con $1/x$; si una proporción normalizada es 0, su logaritmo se representa como 0 y su aporte a la entropía también es 0.
 
-4. **TOPSIS (Technique for Order Preference by Similarity to Ideal Solution):** Aplicado sobre las matrices de decisión normalizadas (vía Suma de Cuadrados) para generar un ranking de alternativas en función de su cercanía a la solución ideal. Se calcula con los pesos de AHP, CRITIC y entropía.
+4. **TOPSIS (Technique for Order Preference by Similarity to Ideal Solution):** Aplicado sobre las matrices de decisión normalizadas (vía Suma de Cuadrados) para generar un ranking de alternativas en función de su cercanía a la solución ideal. Se calcula con los pesos de CRITIC y entropía. CRITIC es el método predilecto por su reparto casi simétrico de los pesos; entropía se usa como apoyo cuando los productos quedan parejos. El orden indica qué productos resultan más convenientes y **no es un orden de producción**.
 
 ## Criterios de Evaluación
 
@@ -84,8 +84,8 @@ Tests del backend: `cd backend && python -m pytest`.
 | GET | `/api/criterios` | Criterios y su sentido (max/min) |
 | GET | `/api/tablas` | Las 3 matrices de decisión (con el desperdicio vigente) |
 | GET | `/api/pesos` · `/api/pesos/{tabla}` | Pesos por tabla: AHP (λ, IC, IA, RC), CRITIC (σ, correlaciones, Cj, Wj) y entropía (Hj, Dj, Wj) calculados sobre las alternativas de cada tabla |
-| GET | `/api/topsis` · `/api/topsis/{tabla}` | TOPSIS con pesos AHP, CRITIC y entropía |
-| GET | `/api/sensibilidad/{tabla}?metodo=ahp\|critic\|entropia&paso=0.05` | Variación del peso de cada criterio de 0 a 1 |
+| GET | `/api/topsis` · `/api/topsis/{tabla}` | TOPSIS con pesos CRITIC y entropía |
+| GET | `/api/sensibilidad/{tabla}?metodo=critic\|entropia&paso=0.05` | Variación del peso de cada criterio de 0 a 1 |
 | POST | `/api/tablas/{tabla}/desperdicio` | `{"valores": {"A1": 5}}` — modifica el desperdicio y devuelve TOPSIS recalculado |
 | POST | `/api/desperdicio/multiple` | `{"tablas": {"habituales": {"A1": 5}, "especial": {"A1": 5}}}` — actualiza varias tablas en una transacción |
 | DELETE | `/api/tablas/{tabla}/desperdicio` | Restablece los valores del cliente |

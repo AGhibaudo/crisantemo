@@ -43,7 +43,7 @@ export default function App() {
         <div className="header-top">
           <div>
             <h1>Crisantemo</h1>
-            <p className="subtitle">Modelo de apoyo a la decisión multicriterio · AHP · CRITIC · Entropía · TOPSIS</p>
+            <p className="subtitle">Modelo de apoyo a la decisión multicriterio · CRITIC · Entropía · TOPSIS</p>
           </div>
           <ThemeToggle />
         </div>

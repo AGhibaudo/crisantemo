@@ -39,6 +39,18 @@ def test_topsis_tres_tablas():
             assert all(0 <= c <= 1 for c in r["cercania"])
 
 
+def test_topsis_no_usa_ahp_por_inconsistente():
+    for t in client.get("/api/topsis").json():
+        assert set(t["resultados"]) == set(t["pesos"]) == {"critic", "entropia"}
+    t = client.get("/api/topsis/habituales").json()
+    assert set(t["resultados"]) == {"critic", "entropia"}
+
+
+def test_sensibilidad_rechaza_ahp_y_usa_critic_por_defecto():
+    assert client.get("/api/sensibilidad/habituales", params={"metodo": "ahp"}).status_code == 400
+    assert client.get("/api/sensibilidad/habituales").json()["metodo"] == "critic"
+
+
 def test_post_desperdicio_recalcula_topsis():
     antes = client.get("/api/topsis/especial").json()
     r = client.post("/api/tablas/especial/desperdicio", json={"valores": {"A1": 0, "A4": 10}})
@@ -46,7 +58,7 @@ def test_post_desperdicio_recalcula_topsis():
     despues = client.get("/api/topsis/especial").json()
 
     assert despues["matriz"][0][5] == 0 and despues["matriz"][3][5] == 10
-    assert despues["resultados"]["ahp"]["cercania"] != antes["resultados"]["ahp"]["cercania"]
+    assert despues["resultados"]["critic"]["cercania"] != antes["resultados"]["critic"]["cercania"]
     # Las otras tablas no se modifican.
     tablas = {t["id"]: t for t in client.get("/api/tablas").json()}
     assert tablas["habituales"]["matriz"][0][5] == 7
@@ -119,7 +131,7 @@ def test_pesos_por_tabla():
 def test_topsis_usa_pesos_de_su_tabla():
     pesos = client.get("/api/pesos").json()
     for t in client.get("/api/topsis").json():
-        for m in ("ahp", "critic", "entropia"):
+        for m in ("critic", "entropia"):
             assert t["pesos"][m] == pytest.approx(pesos[t["tabla"]][m]["pesos"])
 
 

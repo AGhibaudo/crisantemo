@@ -243,29 +243,6 @@ td.highlight, th.highlight { background: var(--accent-soft); }
 .guia-item-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
 .editable-note { color: var(--accent); font-weight: 600; }
 
-.meter { height: 8px; background: var(--border); border-radius: 999px; overflow: hidden; }
-.meter-fill { height: 100%; border-radius: 999px; }
-.meter-fill.ahp { background: var(--serie-1); }
-.meter-fill.critic { background: var(--serie-2); }
-.meter-fill.entropia { background: var(--cat-3); }
-.meter-row { display: grid; grid-template-columns: minmax(120px, 1.2fr) 2fr 3rem; align-items: center; gap: 0.6rem; margin-top: 0.4rem; }
-
-.podio { list-style: none; padding: 0 !important; margin: 0.5rem 0 0 !important; counter-reset: puesto; }
-.podio li {
-  counter-increment: puesto;
-  display: grid;
-  grid-template-columns: 1.6rem minmax(120px, 1.4fr) 1.5fr 4.2rem;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.3rem 0.4rem;
-  border-radius: 6px;
-  font-size: 0.9rem;
-}
-.podio li::before { content: counter(puesto); color: var(--muted); font-weight: 600; text-align: right; }
-.podio li.top { font-weight: 600; }
-.podio li.primero { background: var(--accent-soft); font-weight: 700; }
-.podio li.primero::before { content: '★'; color: var(--accent); }
-
 .alert.info { background: var(--warn-soft); color: var(--text); }
 
 .glosario { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1rem; margin: 0.5rem 0; font-size: 0.9rem; }
@@ -275,6 +252,4 @@ td.highlight, th.highlight { background: var(--accent-soft); }
 @media (max-width: 640px) {
   .glosario { grid-template-columns: 1fr; }
   .glosario dd { margin-bottom: 0.4rem; }
-  .podio li { grid-template-columns: 1.4rem 1fr 3.8rem; }
-  .podio li .meter { display: none; }
 }

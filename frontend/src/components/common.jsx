@@ -57,10 +57,10 @@ export const columnasCriterios = (criterios) =>
     ),
   }))
 
-export const METODOS_PESOS = [
-  { id: 'ahp', label: 'Pesos AHP' },
+/** Métodos con los que se calcula TOPSIS. AHP queda afuera por ser inconsistente (RC > 0,10). */
+export const METODOS_TOPSIS = [
   { id: 'critic', label: 'Pesos CRITIC' },
   { id: 'entropia', label: 'Pesos Entropía' },
 ]
 
-export const NOMBRE_METODO = { ahp: 'AHP', critic: 'CRITIC', entropia: 'Entropía' }
+export const NOMBRE_METODO = { critic: 'CRITIC', entropia: 'Entropía' }

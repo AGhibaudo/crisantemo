@@ -15,7 +15,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-METODOS_PESOS = ("ahp", "critic", "entropia")
+# AHP se conserva solo como diagnóstico en /api/pesos: su RC supera 0,10, por lo que
+# sus juicios son inconsistentes y no se usan para calcular TOPSIS ni la sensibilidad.
+METODOS_TOPSIS = ("critic", "entropia")
 
 
 class DesperdicioIn(BaseModel):
@@ -71,8 +73,8 @@ def _topsis_tabla(tabla):
         "nombre": tabla["nombre"],
         "alternativas": [{"id": a["id"], "nombre": a["nombre"]} for a in tabla["alternativas"]],
         "matriz": matriz,
-        "pesos": {m: pesos[m]["pesos"] for m in METODOS_PESOS},
-        "resultados": {m: topsis(matriz, pesos[m]["pesos"], CRITERIOS) for m in METODOS_PESOS},
+        "pesos": {m: pesos[m]["pesos"] for m in METODOS_TOPSIS},
+        "resultados": {m: topsis(matriz, pesos[m]["pesos"], CRITERIOS) for m in METODOS_TOPSIS},
     }
 
 
@@ -109,10 +111,10 @@ def get_topsis_tabla(tabla_id: str):
 
 
 @app.get("/api/sensibilidad/{tabla_id}")
-def get_sensibilidad(tabla_id: str, metodo: str = "ahp", paso: float = 0.05):
+def get_sensibilidad(tabla_id: str, metodo: str = "critic", paso: float = 0.05):
     _validar_tabla(tabla_id)
-    if metodo not in METODOS_PESOS:
-        raise HTTPException(400, f"Método inválido. Opciones: {', '.join(METODOS_PESOS)}")
+    if metodo not in METODOS_TOPSIS:
+        raise HTTPException(400, f"Método inválido. Opciones: {', '.join(METODOS_TOPSIS)}")
     if not 0.01 <= paso <= 0.25:
         raise HTTPException(400, "El paso debe estar entre 0.01 y 0.25")
     tabla = state.tablas_actuales()[tabla_id]

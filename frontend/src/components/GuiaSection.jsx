@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, fmt } from '../api'
-import { METODOS_PESOS, NOMBRE_METODO, Selector } from './common'
+import { METODOS_TOPSIS, NOMBRE_METODO, Selector } from './common'
 
 const EXPLICACION = {
   demanda: 'Cuántas unidades se espera vender.',
@@ -13,13 +13,9 @@ const EXPLICACION = {
 }
 
 const MIRADAS = {
-  ahp: {
-    titulo: 'Según la opinión del cliente',
-    detalle: 'Surge de preguntarle al cliente qué aspecto le importa más que otro, de a pares.',
-  },
   critic: {
     titulo: 'Según los números',
-    detalle: 'Surge de los propios datos: pesa más lo que más diferencia a un producto de otro.',
+    detalle: 'Surge de los propios datos y reparte la importancia de forma casi pareja entre los aspectos.',
   },
   entropia: {
     titulo: 'Según la diversidad de los datos',
@@ -27,15 +23,55 @@ const MIRADAS = {
   },
 }
 
+// Diferencia de Ci (2 puntos de 100) por debajo de la cual dos productos se consideran parejos.
+const UMBRAL_PAREJOS = 0.02
+
 const puntaje = (ci) => Math.round(ci * 100)
 const porcentaje = (w) => `${Math.round(w * 100)} %`
 
-function Barra({ valor, metodo }) {
-  return (
-    <div className="meter">
-      <div className={`meter-fill ${metodo}`} style={{ width: `${Math.max(2, valor * 100)}%` }} />
-    </div>
-  )
+const listar = (productos) => new Intl.ListFormat('es').format(productos.map((p) => p.nombre))
+
+/**
+ * Aplica la regla de decisión de la guía: CRITIC manda y Entropía solo desempata
+ * a los productos que CRITIC deja parejos.
+ */
+function decision(critic, entropia) {
+  const lider = critic[0]
+  const parejos = critic.filter((a) => lider.ci - a.ci < UMBRAL_PAREJOS)
+
+  if (parejos.length === 1) {
+    return entropia[0].id === lider.id
+      ? { firme: true, texto: <>Priorizar <strong>{lider.nombre}</strong>: CRITIC y Entropía coinciden.</> }
+      : {
+          firme: false,
+          texto: (
+            <>
+              Priorizar <strong>{lider.nombre}</strong>, según CRITIC. Entropía prefiere a{' '}
+              <strong>{entropia[0].nombre}</strong>, pero eso no cambia la decisión: es un aviso para revisar el
+              aspecto que más pesa en Entropía.
+            </>
+          ),
+        }
+  }
+
+  const candidatos = entropia.filter((a) => parejos.some((p) => p.id === a.id))
+  const finalistas = candidatos.filter((a) => candidatos[0].ci - a.ci < UMBRAL_PAREJOS)
+  return {
+    firme: false,
+    texto: (
+      <>
+        Con CRITIC quedan parejos {listar(parejos)}. Al desempatar con Entropía,{' '}
+        {finalistas.length === 1 ? (
+          <>conviene priorizar <strong>{finalistas[0].nombre}</strong>.</>
+        ) : (
+          <>
+            quedan adelante <strong>{listar(finalistas)}</strong>: resultan igual de convenientes y la elección entre
+            ellos queda a criterio del cliente.
+          </>
+        )}
+      </>
+    ),
+  }
 }
 
 /**
@@ -67,7 +103,7 @@ export default function GuiaSection({ datos, version, irA }) {
 
   useEffect(() => {
     let vigente = true
-    Promise.all(METODOS_PESOS.map(({ id }) => api.sensibilidad(tablaId, id)))
+    Promise.all(METODOS_TOPSIS.map(({ id }) => api.sensibilidad(tablaId, id)))
       .then((resultados) => vigente && setSens({
         tabla: tablaId,
         ...Object.fromEntries(resultados.map((resultado) => [resultado.metodo, resultado])),
@@ -81,12 +117,18 @@ export default function GuiaSection({ datos, version, irA }) {
     t.alternativas
       .map((a, i) => ({ ...a, ci: t.resultados[m].cercania[i], pos: t.resultados[m].ranking[i] }))
       .sort((a, b) => a.pos - b.pos)
-  const podios = Object.fromEntries(METODOS_PESOS.map(({ id }) => [id, podio(id)]))
-  const lideres = Object.fromEntries(METODOS_PESOS.map(({ id }) => [id, podios[id][0]]))
-  const coinciden = new Set(Object.values(lideres).map((a) => a.id)).size === 1
+  const podios = Object.fromEntries(METODOS_TOPSIS.map(({ id }) => [id, podio(id)]))
+  const recomendacion = decision(podios.critic, podios.entropia)
+  const ultimo = podios.critic[podios.critic.length - 1]
 
   const importancia = (m) =>
     criterios.map((c, j) => ({ ...c, peso: pesos[m].pesos[j] })).sort((a, b) => b.peso - a.peso)
+  const pesosCritic = importancia('critic')
+  const pesosEntropia = importancia('entropia')
+  const criticMayor = pesosCritic[0]
+  const criticMenor = pesosCritic[pesosCritic.length - 1]
+  const entropiaMayor = pesosEntropia[0]
+  const entropiaMenor = pesosEntropia[pesosEntropia.length - 1]
 
   const desperdicio = criterios.find((c) => c.clave === 'desperdicio')
   const nombreCrit = (id) => criterios.find((c) => c.id === id).nombre
@@ -103,15 +145,19 @@ export default function GuiaSection({ datos, version, irA }) {
       <div className="card">
         <h3>1. ¿Para qué sirve?</h3>
         <p>
-          Ayuda a decidir <strong>qué productos conviene priorizar en la producción</strong>. En lugar de
-          decidir "a ojo", compara todos los productos en {criterios.length} aspectos a la vez (cuánto se
-          vende, cuánto se gana, cuánto tiempo lleva, etc.) y arma un ranking del más conveniente al menos
-          conveniente.
+          Su objetivo es <strong>determinar y priorizar los productos que resultan más convenientes para la
+          producción de Crisantemo</strong>, considerando factores económicos, comerciales, productivos y operativos.
+          En lugar de decidir "a ojo", compara todos los productos en {criterios.length} aspectos a la vez y arma un
+          ranking del más conveniente al menos conveniente.
         </p>
         <p className="muted">
           Hay tres situaciones: un <strong>día habitual</strong>, un día habitual con un <strong>producto
           especial</strong> (Shio Pan) y un día habitual sumando un <strong>nuevo producto fijo</strong> (Alfajor de Maní).
         </p>
+        <div className="alert info">
+          <strong>Importante:</strong> el ranking <strong>no es un orden de producción</strong>. Indica qué productos
+          convienen más, no cuál elaborar primero. Lo explicamos en el punto 8.
+        </div>
       </div>
 
       <div className="card">
@@ -131,74 +177,156 @@ export default function GuiaSection({ datos, version, irA }) {
       </div>
 
       <div className="card">
-        <h3>3. ¿Qué es lo más importante?</h3>
+        <h3>3. ¿Por qué no se usa la opinión del cliente (AHP)?</h3>
         <p>
-          No todos los aspectos pesan lo mismo. Se calculan tres formas de repartir la importancia, y se
-          muestran para comparar. Las dos basadas en datos cambian según los productos de cada situación:
+          AHP calcula la importancia de cada aspecto a partir de la opinión del cliente, preguntándole cuál importa más
+          que otro, de a pares. Para confiar en el resultado, esas respuestas tienen que ser coherentes entre sí. Eso se
+          mide con la <strong>razón de consistencia (RC)</strong>, que debe ser de 0,10 o menos.
+        </p>
+        <p>
+          Acá dio <strong>RC = {fmt(pesos.ahp.rc, 2)}</strong>, casi siete veces el máximo aceptado. Por ejemplo, las
+          respuestas dicen que la Dificultad importa más que la Vida Útil, la Vida Útil más que el Desperdicio y el
+          Desperdicio más que la Dificultad: un círculo que no permite saber cuál importa más.
+        </p>
+        <p>
+          Por eso <strong>el ranking no se calcula con AHP</strong>. Esto no quiere decir que la opinión del cliente no
+          importe, sino que estas respuestas no alcanzan para obtener pesos confiables. Se calculan en cambio con
+          CRITIC y Entropía, que surgen de los datos. Los pesos de AHP siguen disponibles como referencia en la
+          pestaña <strong>Pesos</strong>.
+        </p>
+      </div>
+
+      <div className="card">
+        <h3>4. ¿Qué pesa más en cada método?</h3>
+        <p>
+          No todos los aspectos pesan lo mismo. CRITIC y Entropía reparten la importancia de distinta forma, y ambas
+          cambian según los productos de cada situación:
         </p>
         <Selector opciones={topsis.map((x) => ({ id: x.tabla, label: x.nombre }))} valor={tablaId} onChange={setTablaId} />
-        <div className="grid-2">
-          {METODOS_PESOS.map(({ id: m }) => (
-            <div key={m} className="guia-item">
-              <strong>{MIRADAS[m].titulo}</strong>
-              <p className="small muted">{MIRADAS[m].detalle}</p>
-              {importancia(m).map((c) => (
-                <div key={c.id} className="meter-row">
-                  <span className="small">{c.nombre}</span>
-                  <Barra valor={c.peso} metodo={m} />
-                  <span className="small num">{porcentaje(c.peso)}</span>
-                </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Aspecto</th>
+                {METODOS_TOPSIS.map(({ id: m }) => <th key={m} className="num">Peso {NOMBRE_METODO[m]}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {criterios.map((c, j) => (
+                <tr key={c.id}>
+                  <th className="row-head">{c.nombre}</th>
+                  {METODOS_TOPSIS.map(({ id: m }) => {
+                    const mayor = importancia(m)[0].id === c.id
+                    return (
+                      <td key={m} className={mayor ? 'num highlight' : 'num'}>
+                        {mayor ? <strong>{porcentaje(pesos[m].pesos[j])}</strong> : porcentaje(pesos[m].pesos[j])}
+                      </td>
+                    )
+                  })}
+                </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="small muted">Resaltado: el aspecto que más pesa en cada método.</p>
+      </div>
+
+      <div className="card">
+        <h3>5. ¿Qué productos resultan más convenientes?</h3>
+        <Selector opciones={topsis.map((x) => ({ id: x.tabla, label: x.nombre }))} valor={tablaId} onChange={setTablaId} />
+        <div className="grid-2">
+          {METODOS_TOPSIS.map(({ id: m }) => (
+            <div key={m}>
+              <strong>{NOMBRE_METODO[m]}: {MIRADAS[m].titulo.toLowerCase()}</strong>
+              <p className="small muted">{MIRADAS[m].detalle}</p>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th className="num">Puesto</th><th>Producto</th><th className="num">Puntaje</th></tr>
+                  </thead>
+                  <tbody>
+                    {podios[m].map((a) => (
+                      <tr key={a.id} className={a.pos === 1 ? 'highlight' : ''}>
+                        <td className="num">{a.pos}</td>
+                        <td>{a.nombre}</td>
+                        <td className="num">{puntaje(a.ci)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ))}
         </div>
-        {!pesos.ahp.consistente && (
-          <p className="small muted">
-            ¿Por qué tres formas? Al comparar los aspectos de a pares, las respuestas del cliente tuvieron algunas
-            contradicciones (por ejemplo, decir que A importa más que B, B más que C, pero C más que A). Por eso,
-            además de su opinión, se calcularon dos versiones basadas solo en los datos.
-          </p>
-        )}
-      </div>
-
-      <div className="card">
-        <h3>4. ¿Qué conviene producir?</h3>
-        <Selector opciones={topsis.map((x) => ({ id: x.tabla, label: x.nombre }))} valor={tablaId} onChange={setTablaId} />
-        <div className="grid-2">
-          {METODOS_PESOS.map(({ id: m }) => {
-            const lista = podios[m]
-            return (
-              <div key={m} className="guia-item">
-                <strong>{MIRADAS[m].titulo}</strong>
-                <ol className="podio">
-                  {lista.map((a, i) => (
-                    <li key={a.id} className={i === 0 ? 'primero' : i < 3 ? 'top' : ''}>
-                      <span>{a.nombre}</span>
-                      <Barra valor={a.ci} metodo={m} />
-                      <span className="num"><strong>{puntaje(a.ci)}</strong><span className="muted small"> / 100</span></span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            )
-          })}
-        </div>
-        <div className={`alert ${coinciden ? 'ok' : 'info'}`}>
-          {coinciden ? (
-            <>Los tres métodos coinciden: <strong>{lideres.ahp.nombre}</strong> es el producto mejor posicionado.</>
-          ) : (
-            <>
-              Los métodos no coinciden en el primer puesto:{' '}
-              {METODOS_PESOS.map(({ id: metodoId }, i) => (
-                <span key={metodoId}>{i > 0 ? '; ' : ''}{NOMBRE_METODO[metodoId]} prioriza <strong>{lideres[metodoId].nombre}</strong></span>
-              ))}.
-            </>
-          )}
+        <div className={`alert ${recomendacion.firme ? 'ok' : 'info'}`}>
+          <strong>Decisión para "{t.nombre}":</strong> {recomendacion.texto}
         </div>
       </div>
 
       <div className="card">
-        <h3>5. ¿Cómo se lee el puntaje?</h3>
+        <h3>6. ¿Qué decisión tomar y en qué momento?</h3>
+        <div className="guia-grid">
+          <div className="guia-item">
+            <strong>Siempre, como primera opción: CRITIC</strong>
+            <p className="small">Es la decisión predilecta. Empezá por este ranking para ver qué productos convienen más.</p>
+          </div>
+          <div className="guia-item">
+            <strong>Si los productos quedan parejos: Entropía</strong>
+            <p className="small">
+              Si CRITIC deja varios productos a menos de 2 puntos, sus aspectos no están marcando una diferencia. Entropía
+              desempata porque da más peso a lo que más los diferencia. En "{t.nombre}" ese aspecto
+              es {entropiaMayor.nombre}, con {porcentaje(entropiaMayor.peso)} de peso.
+            </p>
+          </div>
+          <div className="guia-item">
+            <strong>Si los dos coinciden: decisión firme</strong>
+            <p className="small">Cuando el mismo producto lidera en CRITIC y en Entropía, se puede priorizar con confianza.</p>
+          </div>
+          <div className="guia-item">
+            <strong>Si no coinciden y no hay empate: sigue CRITIC</strong>
+            <p className="small">Mantené la decisión de CRITIC y tomá la de Entropía como un aviso para revisar ese aspecto.</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3>7. ¿Por qué CRITIC antes que Entropía?</h3>
+        <ul>
+          <li>
+            <strong>Reparte el peso de forma casi simétrica.</strong> En "{t.nombre}", cada aspecto pesa entre{' '}
+            {porcentaje(criticMenor.peso)} y {porcentaje(criticMayor.peso)}. Ninguno recibe mayor peso que el resto de manera
+            marcada, y eso se ajusta al objetivo de considerar a la vez factores económicos, comerciales, productivos y
+            operativos.
+          </li>
+          <li>
+            <strong>Tiene en cuenta más información.</strong> CRITIC mira cuánto varía cada aspecto y también si aporta
+            algo distinto a los demás, para no contar dos veces lo mismo. Entropía solo mira cómo se distribuyen los valores
+            de cada aspecto.
+          </li>
+          <li>
+            <strong>Entropía puede depender de un solo dato.</strong> En "{t.nombre}", {entropiaMayor.nombre} pesa{' '}
+            {porcentaje(entropiaMayor.peso)} y {entropiaMenor.nombre} apenas {porcentaje(entropiaMenor.peso)}. Cuando un
+            aspecto pesa tanto, los demás casi no cuentan. Por eso conviene usarla como desempate y no como decisión principal.
+          </li>
+        </ul>
+      </div>
+
+      <div className="card">
+        <h3>8. ¿Por qué el ranking no es un orden de producción?</h3>
+        <p>
+          El orden que da TOPSIS responde a un único objetivo: <strong>determinar y priorizar los productos que resultan
+          más convenientes para la producción de Crisantemo, considerando factores económicos, comerciales, productivos y
+          operativos</strong>.
+        </p>
+        <p>
+          El puesto 1 es el producto más conveniente en conjunto, no el que hay que elaborar primero. El ranking tampoco dice
+          cuántas unidades hacer ni cómo organizar la jornada. Y estar abajo no significa dejar de elaborar un producto:
+          {' '}{ultimo.nombre} sale último con CRITIC, pero eso solo indica que es el menos conveniente de la lista.
+        </p>
+      </div>
+
+      <div className="card">
+        <h3>9. ¿Cómo se lee el puntaje?</h3>
         <p>
           Imaginá dos productos inventados: el <strong>producto ideal</strong>, que tiene lo mejor de todos en cada
           aspecto (el que más se vende, el que más deja, el más rápido…), y el <strong>peor producto posible</strong>,
@@ -212,7 +340,7 @@ export default function GuiaSection({ datos, version, irA }) {
       </div>
 
       <div className="card">
-        <h3>6. ¿Qué puedo cambiar yo?</h3>
+        <h3>10. ¿Qué puedo cambiar yo?</h3>
         <p>
           Todos los datos los dio el cliente y están fijos, salvo el <strong>{desperdicio.nombre}</strong>. Si notás
           que de un producto se tira más (o menos) de lo previsto, podés actualizarlo:
@@ -230,14 +358,14 @@ export default function GuiaSection({ datos, version, irA }) {
       </div>
 
       <div className="card">
-        <h3>7. ¿Qué tan firme es el resultado?</h3>
+        <h3>11. ¿Qué tan firme es el resultado?</h3>
         <p>
           Se probó qué pasaría si a algún aspecto se le diera más o menos importancia de la calculada. Si el ganador
           sigue primero aunque cambie mucho la importancia, el resultado es <strong>firme</strong>.
         </p>
         {sens.tabla === tablaId ? (
           <div className="grid-2">
-            {METODOS_PESOS.map(({ id: m }) => {
+            {METODOS_TOPSIS.map(({ id: m }) => {
               const r = sens[m]
               const ganador = r.alternativas[r.lider_base].nombre
               const avisos = r.criterios
@@ -245,7 +373,7 @@ export default function GuiaSection({ datos, version, irA }) {
                 .filter((x) => x.cambio)
               return (
                 <div key={m} className="guia-item">
-                  <strong>{MIRADAS[m].titulo}</strong>
+                  <strong>{NOMBRE_METODO[m]}</strong>
                   {avisos.length === 0 ? (
                     <p className="small">
                       <strong>{ganador}</strong> se mantiene primero aunque la importancia de cualquier aspecto
@@ -282,10 +410,10 @@ export default function GuiaSection({ datos, version, irA }) {
           <dt>Criterio</dt><dd>Cada uno de los aspectos que se comparan (demanda, rentabilidad, etc.).</dd>
           <dt>Alternativa</dt><dd>Cada producto (A1, A2…).</dd>
           <dt>Peso</dt><dd>Qué tan importante es un criterio. Todos los pesos suman 100 %.</dd>
-          <dt>AHP</dt><dd>Método que calcula los pesos a partir de la opinión del cliente.</dd>
+          <dt>AHP</dt><dd>Método que calcula los pesos a partir de la opinión del cliente. No se usa para el ranking porque sus respuestas resultaron inconsistentes.</dd>
           <dt>RC (razón de consistencia)</dt><dd>Mide si esas opiniones son coherentes entre sí. Por encima de 0,10 hay contradicciones.</dd>
-          <dt>CRITIC</dt><dd>Método que calcula los pesos a partir de los datos.</dd>
-          <dt>Entropía</dt><dd>Método objetivo que asigna más peso a los criterios que más diferencian las alternativas.</dd>
+          <dt>CRITIC</dt><dd>Método que calcula los pesos a partir de los datos. Es la decisión predilecta.</dd>
+          <dt>Entropía</dt><dd>Método objetivo que asigna más peso a los criterios que más diferencian las alternativas. Se usa para desempatar.</dd>
           <dt>TOPSIS</dt><dd>Método que arma el ranking comparando cada producto con el ideal y con el peor.</dd>
           <dt>Ci (coeficiente de cercanía)</dt><dd>El puntaje de cada producto, entre 0 y 1 (en esta guía, de 0 a 100).</dd>
           <dt>Análisis de sensibilidad</dt><dd>Prueba de qué tan firme es el ranking si cambian los pesos.</dd>
