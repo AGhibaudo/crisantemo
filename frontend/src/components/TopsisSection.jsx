@@ -45,10 +45,10 @@ export default function TopsisSection({ datos }) {
       <div className="card">
         <h3>Ranking · {t.nombre} · pesos {NOMBRE_METODO[metodo]}</h3>
         <div className="table-wrap">
-          <table>
+          <table className="tabla-centrada">
             <thead>
               <tr>
-                <th>#</th><th>Alternativa</th><th>d⁺</th><th>d⁻</th><th>Ci</th>
+                <th>#</th><th className="texto">Alternativa</th><th>d⁺</th><th>d⁻</th><th>Ci</th>
                 {Object.keys(t.resultados).map((m) => <th key={m}>Puesto {NOMBRE_METODO[m]}</th>)}
               </tr>
             </thead>
@@ -56,7 +56,7 @@ export default function TopsisSection({ datos }) {
               {ranking.map((a) => (
                 <tr key={a.id} className={a.pos === 1 ? 'highlight' : ''}>
                   <td className="num"><strong>{a.pos}</strong></td>
-                  <td>{a.id} · {a.nombre}</td>
+                  <td className="texto">{a.id} · {a.nombre}</td>
                   <td className="num">{fmt(a.dPos)}</td>
                   <td className="num">{fmt(a.dNeg)}</td>
                   <td className="num"><strong>{fmt(a.ci)}</strong></td>

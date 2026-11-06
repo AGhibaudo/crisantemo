@@ -38,9 +38,9 @@ export default function PesosSection({ datos }) {
       <div className="card">
         <h3>Comparación de pesos · {tablaCritic.nombre}</h3>
         <div className="table-wrap">
-          <table>
+          <table className="tabla-centrada">
             <thead>
-              <tr><th>Criterio</th><th>Tipo</th><th>Peso AHP</th><th>Peso CRITIC</th><th>Peso Entropía</th></tr>
+              <tr><th className="texto">Criterio</th><th>Tipo</th><th>Peso AHP</th><th>Peso CRITIC</th><th>Peso Entropía</th></tr>
             </thead>
             <tbody>
               {comparacion.map((c, j) => (

@@ -178,6 +178,8 @@ thead th { background: var(--surface-2); font-weight: 600; vertical-align: botto
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 tr.highlight td, tr.highlight th { background: var(--accent-soft); }
 td.highlight, th.highlight { background: var(--accent-soft); }
+.tabla-centrada th, .tabla-centrada td { text-align: center; }
+.tabla-centrada .texto, .tabla-centrada .row-head { text-align: left; }
 
 .badge { display: inline-block; font-size: 0.7rem; padding: 0 0.35rem; border-radius: 4px; font-weight: 600; margin-left: 0.2rem; }
 .badge.max { background: var(--ok-soft); color: var(--ok); }
