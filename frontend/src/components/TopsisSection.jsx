@@ -17,7 +17,7 @@ export default function TopsisSection({ datos }) {
   const ranking = t.alternativas
     .map((a, i) => ({
       ...a,
-      ...Object.fromEntries(Object.keys(t.resultados).flatMap((m) => [
+      ...Object.fromEntries(METODOS_TOPSIS.flatMap(({ id: m }) => [
         [m, t.resultados[m].cercania[i]],
         [`pos${m}`, t.resultados[m].ranking[i]],
       ])),
@@ -49,7 +49,7 @@ export default function TopsisSection({ datos }) {
             <thead>
               <tr>
                 <th>#</th><th className="texto">Alternativa</th><th>d⁺</th><th>d⁻</th><th>Ci</th>
-                {Object.keys(t.resultados).map((m) => <th key={m}>Puesto {NOMBRE_METODO[m]}</th>)}
+                {METODOS_TOPSIS.map(({ id: m }) => <th key={m}>Puesto {NOMBRE_METODO[m]}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -60,7 +60,7 @@ export default function TopsisSection({ datos }) {
                   <td className="num">{fmt(a.dPos)}</td>
                   <td className="num">{fmt(a.dNeg)}</td>
                   <td className="num"><strong>{fmt(a.ci)}</strong></td>
-                  {Object.keys(t.resultados).map((m) => <td key={m} className="num">{a[`pos${m}`]}</td>)}
+                  {METODOS_TOPSIS.map(({ id: m }) => <td key={m} className="num">{a[`pos${m}`]}</td>)}
                 </tr>
               ))}
             </tbody>
